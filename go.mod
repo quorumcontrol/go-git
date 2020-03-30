@@ -1,4 +1,4 @@
-module github.com/go-git/go-git/v5
+module github.com/quorumcontrol/go-git/v5
 
 require (
 	github.com/anmitsu/go-shlex v0.0.0-20161002113705-648efa622239 // indirect
