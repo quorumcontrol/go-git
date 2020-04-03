@@ -157,8 +157,18 @@ func (d *DotGit) Close() error {
 }
 
 // ConfigWriter returns a file pointer for write to the config file
-func (d *DotGit) ConfigWriter() (billy.File, error) {
+func (d *DotGit) LocalConfigWriter() (billy.File, error) {
 	return d.fs.Create(configPath)
+}
+
+// SystemConfigWriter returns a file pointer for write to the system config file
+func (d *DotGit) SystemConfigWriter() (billy.File, error) {
+	return d.fs.Create(systemConfigPath)
+}
+
+// UserConfigWriter returns a file pointer for write to the system config file
+func (d *DotGit) UserConfigWriter() (billy.File, error) {
+	return d.fs.Create(path.Join(os.Getenv("HOME"), userConfigFile))
 }
 
 // Config returns a file pointer for read to the config file

@@ -67,16 +67,20 @@ type Config struct {
 	// preserve the parsed information from the original format, to avoid
 	// dropping unsupported fields.
 	Raw *format.Config
+
+	Scope         format.Scope
+	scopedConfigs ScopedConfigs
 }
 
-// NewConfig returns a new empty Config.
-func NewConfig() *Config {
+// NewScopedConfig returns a new empty Config.
+func NewScopedConfig(scope format.Scope) *Config {
 	config := &Config{
 		Remotes:    make(map[string]*RemoteConfig),
 		Submodules: make(map[string]*Submodule),
 		Branches:   make(map[string]*Branch),
 		User:       new(User),
-		Raw:        format.New(),
+		Raw:        format.NewScoped(scope),
+		Scope:      scope,
 	}
 
 	config.Pack.Window = DefaultPackWindow
@@ -84,8 +88,45 @@ func NewConfig() *Config {
 	return config
 }
 
-// Validate validates the fields and sets the default values.
-func (c *Config) Validate() error {
+// NewConfig returns a new empty local scope Config.
+func NewConfig() *Config {
+	return NewScopedConfig(format.LocalScope)
+}
+
+type ScopedConfigs map[format.Scope]*Config
+
+func NewMergedConfig(configs ScopedConfigs) (*Config, error) {
+	cfg := NewScopedConfig(format.MergedScope)
+	cfg.scopedConfigs = configs
+
+	data := []byte("\n")
+
+	// iterate over scopes in the same order git merges config files
+	for scope := format.SystemScope; scope <= format.LocalScope; scope++ {
+		sc := cfg.scopedConfigs[scope]
+		scData, err := sc.Marshal()
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, scData...)
+		data = append(data, []byte("\n")...)
+	}
+
+	if err := cfg.Unmarshal(data); err != nil {
+		return nil, err
+	}
+
+	return cfg, nil
+}
+
+func (c *Config) ScopedConfigs() ScopedConfigs {
+	if c.Scope != format.MergedScope {
+		return make(ScopedConfigs)
+	}
+	return c.scopedConfigs
+}
+
+func (c *Config) validate() error {
 	for name, r := range c.Remotes {
 		if r.Name != name {
 			return ErrInvalid
@@ -104,6 +145,21 @@ func (c *Config) Validate() error {
 		if err := b.Validate(); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+// Validate validates the fields and sets the default values.
+func (c *Config) Validate() error {
+	if c.Scope == format.MergedScope {
+		for _, sc := range c.scopedConfigs {
+			if err := sc.validate(); err != nil {
+				return err
+			}
+		}
+	} else {
+		return c.validate()
 	}
 
 	return nil
@@ -137,7 +193,7 @@ func (c *Config) Unmarshal(b []byte) error {
 	r := bytes.NewBuffer(b)
 	d := format.NewDecoder(r)
 
-	c.Raw = format.New()
+	c.Raw = format.NewScoped(c.Scope)
 	if err := d.Decode(c.Raw); err != nil {
 		return err
 	}

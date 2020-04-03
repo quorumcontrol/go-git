@@ -345,7 +345,7 @@ func (s *SuiteDotGit) TestConfigWriteAndConfig(c *C) {
 	fs := osfs.New(tmp)
 	dir := New(fs)
 
-	f, err := dir.ConfigWriter()
+	f, err := dir.LocalConfigWriter()
 	c.Assert(err, IsNil)
 
 	_, err = f.Write([]byte("foo"))

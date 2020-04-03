@@ -1,16 +1,30 @@
 package config
 
 // New creates a new config instance.
+func NewScoped(scope Scope) *Config {
+	return &Config{Scope: scope}
+}
+
 func New() *Config {
-	return &Config{}
+	return NewScoped(LocalScope)
 }
 
 // Config contains all the sections, comments and includes from a config file.
 type Config struct {
+	Scope    Scope
 	Comment  *Comment
 	Sections Sections
 	Includes Includes
 }
+
+type Scope int
+
+const (
+	SystemScope Scope = iota
+	UserScope
+	LocalScope
+	MergedScope
+)
 
 // Includes is a list of Includes in a config file.
 type Includes []*Include
