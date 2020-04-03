@@ -104,6 +104,9 @@ func NewMergedConfig(configs ScopedConfigs) (*Config, error) {
 	// iterate over scopes in the same order git merges config files
 	for scope := format.SystemScope; scope <= format.LocalScope; scope++ {
 		sc := cfg.scopedConfigs[scope]
+		if sc == nil {
+			continue
+		}
 		scData, err := sc.Marshal()
 		if err != nil {
 			return nil, err

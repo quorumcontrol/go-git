@@ -1,6 +1,7 @@
 package config
 
 import (
+	format "github.com/go-git/go-git/v5/plumbing/format/config"
 	. "gopkg.in/check.v1"
 	"github.com/go-git/go-git/v5/plumbing"
 )
@@ -63,6 +64,81 @@ func (s *ConfigSuite) TestUnmarshal(c *C) {
 	c.Assert(cfg.Branches["master"].Merge, Equals, plumbing.ReferenceName("refs/heads/master"))
 	c.Assert(cfg.User.Name, Equals, "Soandso")
 	c.Assert(cfg.User.Email, Equals, "soandso@example.com")
+}
+
+func (s *ConfigSuite) TestMergedUnmarshal(c *C) {
+	localInput := []byte(`[core]
+        bare = true
+		worktree = foo
+		commentchar = bar
+[pack]
+		window = 20
+[remote "origin"]
+        url = git@github.com:mcuadros/go-git.git
+        fetch = +refs/heads/*:refs/remotes/origin/*
+[remote "alt"]
+		url = git@github.com:mcuadros/go-git.git
+		url = git@github.com:src-d/go-git.git
+		fetch = +refs/heads/*:refs/remotes/origin/*
+		fetch = +refs/pull/*:refs/remotes/origin/pull/*
+[remote "win-local"]
+		url = X:\\Git\\
+[submodule "qux"]
+        path = qux
+        url = https://github.com/foo/qux.git
+		branch = bar
+[branch "master"]
+        remote = origin
+        merge = refs/heads/master
+`)
+
+	userInput := []byte(`
+[user]
+		name = Soandso
+		email = soandso@example.com
+[core]
+        editor = nvim
+[push]
+        default = simple
+`)
+
+	localCfg := NewScopedConfig(format.LocalScope)
+	userCfg := NewScopedConfig(format.UserScope)
+
+	err := localCfg.Unmarshal(localInput)
+	c.Assert(err, IsNil)
+
+	err = userCfg.Unmarshal(userInput)
+	c.Assert(err, IsNil)
+
+	cfg, err := NewMergedConfig(ScopedConfigs{
+		format.LocalScope: localCfg,
+		format.UserScope:  userCfg,
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(cfg.Core.IsBare, Equals, true)
+	c.Assert(cfg.Core.Worktree, Equals, "foo")
+	c.Assert(cfg.Core.CommentChar, Equals, "bar")
+	c.Assert(cfg.Pack.Window, Equals, uint(20))
+	c.Assert(cfg.Remotes, HasLen, 3)
+	c.Assert(cfg.Remotes["origin"].Name, Equals, "origin")
+	c.Assert(cfg.Remotes["origin"].URLs, DeepEquals, []string{"git@github.com:mcuadros/go-git.git"})
+	c.Assert(cfg.Remotes["origin"].Fetch, DeepEquals, []RefSpec{"+refs/heads/*:refs/remotes/origin/*"})
+	c.Assert(cfg.Remotes["alt"].Name, Equals, "alt")
+	c.Assert(cfg.Remotes["alt"].URLs, DeepEquals, []string{"git@github.com:mcuadros/go-git.git", "git@github.com:src-d/go-git.git"})
+	c.Assert(cfg.Remotes["alt"].Fetch, DeepEquals, []RefSpec{"+refs/heads/*:refs/remotes/origin/*", "+refs/pull/*:refs/remotes/origin/pull/*"})
+	c.Assert(cfg.Remotes["win-local"].Name, Equals, "win-local")
+	c.Assert(cfg.Remotes["win-local"].URLs, DeepEquals, []string{"X:\\Git\\"})
+	c.Assert(cfg.Submodules, HasLen, 1)
+	c.Assert(cfg.Submodules["qux"].Name, Equals, "qux")
+	c.Assert(cfg.Submodules["qux"].URL, Equals, "https://github.com/foo/qux.git")
+	c.Assert(cfg.Submodules["qux"].Branch, Equals, "bar")
+	c.Assert(cfg.Branches["master"].Remote, Equals, "origin")
+	c.Assert(cfg.Branches["master"].Merge, Equals, plumbing.ReferenceName("refs/heads/master"))
+	c.Assert(cfg.User.Name, Equals, "Soandso")
+	c.Assert(cfg.User.Email, Equals, "soandso@example.com")
+	c.Assert(cfg.Raw.Section("push").Option("default"), Equals, "simple")
 }
 
 func (s *ConfigSuite) TestMarshal(c *C) {
